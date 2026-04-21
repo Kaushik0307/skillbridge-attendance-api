@@ -4,14 +4,26 @@ Backend API for a fictional state-level skilling programme attendance system bui
 
 ## 1. Live API base URL and deployment notes
 
-**Live base URL:** Add your deployed URL here after deploying to Render / Railway / Fly.io.
+**Live API base URL:**  
+`https://skillbridge-attendance-api-omkar.onrender.com`
 
-Example:
-```bash
-https://your-skillbridge-api.onrender.com
-```
+**Swagger / OpenAPI docs:**  
+`https://skillbridge-attendance-api-omkar.onrender.com/docs`
 
-**Deployment note:** This repository is deployment-ready. The final step is to provision PostgreSQL (Neon recommended), set the environment variables on the hosting platform, run the seed script once, and update this README with the live base URL.
+### Deployment notes
+- API is deployed on **Render**
+- Database is hosted on **Neon PostgreSQL**
+- Environment variables are managed through platform secrets/config
+- The root Render URL may briefly show a wake-up/loading screen on first open because the service is on a free tier and may need a few seconds to start
+- The live API was verified through both:
+  - the public Swagger docs page at `/docs`
+  - direct terminal/curl style requests against the deployed URL
+
+For the Monitoring Officer flow, the reviewer should:
+1. log in using `/auth/login`
+2. use the standard token to call `/auth/monitoring-token`
+3. replace the token in Swagger **Authorize** with the returned scoped monitoring token
+4. call `/monitoring/attendance`
 
 ## 2. Local setup instructions
 
@@ -21,27 +33,49 @@ https://your-skillbridge-api.onrender.com
 
 ### Clone and install
 ```bash
-git clone <your-repo-url>
-cd skillbridge_submission
+git clone https://github.com/Kaushik0307/skillbridge-attendance-api.git
+cd skillbridge-attendance-api
 python -m venv .venv
 source .venv/bin/activate   # macOS/Linux
-# .venv\Scripts\activate    # Windows
+# .venv\Scripts\activate    # Windows PowerShell
 pip install -r requirements.txt
 ```
 
 ### Configure environment
+Create a `.env` file from `.env.example`.
+
+macOS/Linux:
 ```bash
 cp .env.example .env
 ```
 
-If you want a quick local run, you can keep SQLite by setting:
-```env
-DATABASE_URL=sqlite:///./skillbridge.db
+Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
 ```
 
-If you want PostgreSQL locally or on Neon, use:
+### Example local `.env` for SQLite
+If you want a quick local run with SQLite:
 ```env
-DATABASE_URL=postgresql://username:password@host:5432/skillbridge
+DATABASE_URL=sqlite:///./skillbridge.db
+JWT_SECRET_KEY=change-this-to-a-long-random-secret
+MONITORING_TOKEN_SECRET_KEY=change-this-too
+MONITORING_API_KEY=my-monitoring-api-key
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+MONITORING_TOKEN_EXPIRE_MINUTES=60
+SEED_DEFAULT_PASSWORD=Password123!
+```
+
+### Example local `.env` for PostgreSQL / Neon
+If you want PostgreSQL locally or Neon:
+```env
+DATABASE_URL=postgresql+psycopg://username:password@host:5432/skillbridge
+JWT_SECRET_KEY=change-this-to-a-long-random-secret
+MONITORING_TOKEN_SECRET_KEY=change-this-too
+MONITORING_API_KEY=my-monitoring-api-key
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+MONITORING_TOKEN_EXPIRE_MINUTES=60
+SEED_DEFAULT_PASSWORD=Password123!
 ```
 
 ### Run the API
@@ -68,24 +102,64 @@ Password123!
 ```
 
 ### Seeded accounts
-- Institution 1: `institution1@skillbridge.local`
-- Institution 2: `institution2@skillbridge.local`
-- Trainer 1: `trainer1@skillbridge.local`
-- Trainer 2: `trainer2@skillbridge.local`
-- Trainer 3: `trainer3@skillbridge.local`
-- Trainer 4: `trainer4@skillbridge.local`
-- Student 1: `student1@skillbridge.local`
-- Programme Manager: `pm@skillbridge.local`
-- Monitoring Officer: `monitor@skillbridge.local`
+- Institution 1: `institution1@skillbridgeapp.com`
+- Institution 2: `institution2@skillbridgeapp.com`
+- Trainer 1: `trainer1@skillbridgeapp.com`
+- Trainer 2: `trainer2@skillbridgeapp.com`
+- Trainer 3: `trainer3@skillbridgeapp.com`
+- Trainer 4: `trainer4@skillbridgeapp.com`
+- Student 1: `student1@skillbridgeapp.com`
+- Programme Manager: `pm@skillbridgeapp.com`
+- Monitoring Officer: `monitor@skillbridgeapp.com`
 
-For submission, list at least one account per role in the final version of this README after seeding your production database.
+### Reviewer quick-start accounts
+Use at least one account per role for verification:
+- Institution: `institution1@skillbridgeapp.com / Password123!`
+- Trainer: `trainer1@skillbridgeapp.com / Password123!`
+- Student: `student1@skillbridgeapp.com / Password123!`
+- Programme Manager: `pm@skillbridgeapp.com / Password123!`
+- Monitoring Officer: `monitor@skillbridgeapp.com / Password123!`
 
-## 4. Sample curl commands for every endpoint
+## 4. How to verify the live build
+
+The deployed API was verified successfully against the live Render URL.
+
+### Recommended quick verification path
+1. Open the docs page:  
+   `https://skillbridge-attendance-api-omkar.onrender.com/docs`
+2. Log in with one of the seeded accounts above
+3. Copy the returned JWT
+4. Click **Authorize** and paste the token
+5. Test one protected endpoint for that role
+6. For Monitoring Officer:
+   - log in as `monitor@skillbridgeapp.com`
+   - authorize with the standard login token
+   - call `/auth/monitoring-token`
+   - copy the returned scoped token
+   - re-authorize with the scoped token
+   - call `/monitoring/attendance`
+
+### Live flows verified successfully
+- login for Institution, Trainer, Student, Programme Manager, and Monitoring Officer
+- Monitoring Officer standard token generation
+- Monitoring Officer scoped token generation through `/auth/monitoring-token`
+- `GET /monitoring/attendance` with the scoped token
+- `POST /monitoring/attendance` returning `405 Method Not Allowed`
+- `GET /batches/{id}/summary`
+- `GET /institutions/{id}/summary`
+- `GET /programme/summary`
+- trainer creating a session
+- student marking attendance
+
+Protected endpoint verification was done successfully against the live deployment through both Swagger `/docs` and direct terminal/curl requests.
+
+## 5. Sample curl commands for every endpoint
 
 Replace `BASE_URL` and tokens as needed.
 
+### Live example
 ```bash
-BASE_URL=http://127.0.0.1:8000
+BASE_URL=https://skillbridge-attendance-api-omkar.onrender.com
 ```
 
 ### Signup
@@ -106,7 +180,7 @@ curl -X POST "$BASE_URL/auth/signup" \
 curl -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "trainer1@skillbridge.local",
+    "email": "trainer1@skillbridgeapp.com",
     "password": "Password123!"
   }'
 ```
@@ -134,7 +208,9 @@ curl -X POST "$BASE_URL/batches/1/invite" \
 curl -X POST "$BASE_URL/batches/join" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <STUDENT_JWT>" \
-  -d '{"token": "<INVITE_TOKEN>"}'
+  -d '{
+    "token": "<INVITE_TOKEN>"
+  }'
 ```
 
 ### Create session (Trainer)
@@ -191,7 +267,7 @@ curl "$BASE_URL/programme/summary" \
 curl -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "monitor@skillbridge.local",
+    "email": "monitor@skillbridgeapp.com",
     "password": "Password123!"
   }'
 ```
@@ -201,7 +277,9 @@ curl -X POST "$BASE_URL/auth/login" \
 curl -X POST "$BASE_URL/auth/monitoring-token" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <MONITORING_STANDARD_JWT>" \
-  -d '{"key": "replace-with-monitoring-api-key"}'
+  -d '{
+    "key": "my-monitoring-api-key"
+  }'
 ```
 
 ### Monitoring attendance (scoped token only)
@@ -210,32 +288,29 @@ curl "$BASE_URL/monitoring/attendance" \
   -H "Authorization: Bearer <MONITORING_SCOPED_JWT>"
 ```
 
-### Live deployment login example
-Replace the placeholder with the deployed URL once the app is live:
+### Confirm 405 for non-GET monitoring requests
 ```bash
-curl -X POST "https://your-skillbridge-api.onrender.com/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "trainer1@skillbridge.local",
-    "password": "Password123!"
-  }'
+curl -X POST "$BASE_URL/monitoring/attendance"
 ```
 
-## 5. Schema decisions
+## 6. Schema decisions
 
 ### `batch_trainers`
 This is modeled as a separate linking table because multiple trainers can be assigned to the same batch. It keeps batch ownership flexible and avoids denormalizing trainer IDs into the `batches` table.
 
 ### `batch_invites`
-Invites are modeled separately to support trainer-generated enrollment flows with expiry, auditing (`created_by`), and one-time use via the `used` flag.
+Invites are modeled separately to support trainer-generated enrollment flows with expiry, auditing through `created_by`, and one-time use via the `used` flag.
 
 ### `batch_students`
 A join table cleanly represents student enrollment and supports authorization checks before attendance marking.
 
+### `attendance`
+Attendance is separated from `sessions` and `batch_students` so marking and updating attendance stays explicit per student-session pair. This also keeps summaries easier to compute and audit.
+
 ### Dual-token approach for Monitoring Officer
 The Monitoring Officer first authenticates like every other user and receives a standard JWT. They must then exchange that token plus a server-side API key for a second short-lived monitoring token with `scope=monitoring_read`. The monitoring endpoint only accepts this scoped token. This gives the Monitoring Officer an extra layer of access control without complicating the standard login flow for other roles.
 
-## 6. JWT payload structures
+## 7. JWT payload structures
 
 ### Standard login token
 ```json
@@ -250,7 +325,7 @@ The Monitoring Officer first authenticates like every other user and receives a 
 ### Monitoring scoped token
 ```json
 {
-  "user_id": 9,
+  "user_id": 23,
   "role": "monitoring_officer",
   "scope": "monitoring_read",
   "iat": 1713600000,
@@ -258,21 +333,23 @@ The Monitoring Officer first authenticates like every other user and receives a 
 }
 ```
 
-## 7. Token rotation / revocation in a real deployment
+## 8. Token rotation / revocation in a real deployment
 
-In a real deployment, I would move from purely stateless JWTs to short-lived access tokens plus a refresh-token store, add a token identifier (`jti`) to every token, and keep a revocation table or Redis blacklist for compromised tokens. For the monitoring token specifically, I would rotate the API key using the hosting platform’s secret manager and expire all related tokens on rotation.
+In a real deployment, I would move from purely stateless JWTs to short-lived access tokens plus a refresh-token store, add a token identifier (`jti`) to every token, and keep a revocation table or Redis blacklist for compromised tokens. For the monitoring token specifically, I would rotate the API key using the hosting platform’s secret manager and expire all related monitoring tokens whenever the API key changes.
 
-## 8. Validation, errors, and access control behavior
+## 9. Validation, errors, and access control behavior
 
 Implemented behaviors:
-- All POST endpoints use Pydantic validation and return `422` on invalid payloads.
-- Missing or invalid bearer tokens return `401`.
-- Wrong role on protected routes returns `403`.
-- Missing foreign-key targets like a bad `batch_id` or `session_id` return `404`.
-- Student attendance marking for a session outside their enrollment returns `403`.
-- `/monitoring/attendance` returns `405` for non-GET methods.
+- All POST endpoints use Pydantic validation and return `422` on invalid payloads
+- Missing or invalid bearer tokens return `401`
+- Wrong role on protected routes returns `403`
+- Missing foreign-key targets like a bad `batch_id` or `session_id` return `404`
+- Student attendance marking for a session outside their enrollment returns `403`
+- Student attendance marking for a non-active session returns `403`
+- `/monitoring/attendance` returns `405` for any non-GET request
+- Standard login token is not accepted for `/monitoring/attendance`; only the scoped monitoring token works there
 
-## 9. Tests included
+## 10. Tests included
 
 The project includes pytest coverage for:
 1. Successful student signup and login with JWT returned
@@ -284,50 +361,65 @@ The project includes pytest coverage for:
 
 At least two tests hit a real test database (`sqlite:///./test_skillbridge.db`) instead of mocking everything.
 
-## 10. What is fully working, partially done, and skipped
+## 11. What is fully working, what is partially done, and what was skipped
 
 ### Fully working
 - Role-based signup and login
 - JWT-based protected routes
-- Extra scoped monitoring token flow
-- Batch creation, invite generation, batch join flow
+- Extra scoped monitoring token flow for Monitoring Officer
+- Batch creation
+- Batch invite generation
+- Student join-by-invite flow
 - Session creation
 - Attendance marking for enrolled students in active sessions
 - Session attendance list
 - Batch, institution, and programme summaries
 - Seed script with meaningful sample data
-- Pytest test suite
+- Pytest suite with real test database usage
+- Public deployment on Render backed by Neon PostgreSQL
+- Live verification through both `/docs` and terminal/curl style requests
 
 ### Partially done
-- Deployment is prepared but must be completed with your own hosting account and live environment variables.
-- The README includes placeholder base URL text that should be replaced after deployment.
+- Swagger now supports Bearer auth through the `Authorize` flow, but the Monitoring Officer flow is still inherently a two-step manual process because the user must replace the standard token with the scoped monitoring token before calling `/monitoring/attendance`
+- This is a prototype implementation focused on the assignment scope, not a production-grade system
 
 ### Skipped
 - Token revocation store / refresh-token flow
 - Alembic migrations
 - Rate limiting and audit logging
-- Full production observability (structured logs, metrics, tracing)
+- Full production observability such as structured logs, metrics, tracing, and alerts
+- Frontend UI, since the assignment explicitly focused on a backend API rather than a full product UI
 
-## 11. One security issue in the current implementation and how I would fix it
+## 12. One security issue in the current implementation and how I would fix it
 
 Right now, standard JWTs remain valid until expiry even if a user’s access should be revoked immediately. With more time, I would add token identifiers, refresh tokens, and a server-side revocation / denylist mechanism backed by Redis or a database table.
 
-## 12. One thing I would do differently with more time
+## 13. One thing I would do differently with more time
 
 I would add Alembic migrations and Dockerized local development with PostgreSQL so the local, test, and production environments match more closely and schema changes are versioned cleanly.
 
-## 13. Suggested deployment steps for submission
+## 14. Deployment summary
 
-### Render / Railway / Fly.io
-1. Create a managed PostgreSQL instance (Neon is fine).
-2. Set `DATABASE_URL`, `JWT_SECRET_KEY`, `MONITORING_TOKEN_SECRET_KEY`, `MONITORING_API_KEY`, and `SEED_DEFAULT_PASSWORD` in platform secrets.
-3. Deploy the repo as a web service.
-4. Start command:
+### Render / Neon setup used
+1. Managed PostgreSQL instance created on Neon
+2. Render web service configured with environment variables
+3. Python version pinned to 3.11.9 using `.python-version`
+4. Service deployed with:
 ```bash
 uvicorn src.main:app --host 0.0.0.0 --port $PORT
 ```
-5. Run seed once after deployment:
+5. Production database seeded using:
 ```bash
 python -m src.seed
 ```
-6. Update this README with the real base URL and final seeded role accounts.
+
+### Required environment variables
+```env
+DATABASE_URL=postgresql+psycopg://...
+JWT_SECRET_KEY=...
+MONITORING_TOKEN_SECRET_KEY=...
+MONITORING_API_KEY=my-monitoring-api-key
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+MONITORING_TOKEN_EXPIRE_MINUTES=60
+SEED_DEFAULT_PASSWORD=Password123!
+```
